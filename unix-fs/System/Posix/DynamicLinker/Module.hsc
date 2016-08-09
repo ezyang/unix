@@ -60,10 +60,11 @@ where
 
 #include "HsUnix.h"
 
+import Prelude hiding (FilePath)
 import System.Posix.DynamicLinker
 import System.Posix.DynamicLinker.Common
 import Foreign.Ptr      ( Ptr, nullPtr, FunPtr )
-import System.Posix.Internals ( withFilePath )
+import FilePath
 
 unModule              :: Module -> (Ptr ())
 unModule (Module adr)  = adr
@@ -71,7 +72,7 @@ unModule (Module adr)  = adr
 -- Opens a module (EXPORTED)
 --
 
-moduleOpen :: String -> [RTLDFlags] -> IO Module
+moduleOpen :: FilePath -> [RTLDFlags] -> IO Module
 moduleOpen file flags = do
   modPtr <- withFilePath file $ \ modAddr -> c_dlopen modAddr (packRTLDFlags flags)
   if (modPtr == nullPtr)
@@ -97,24 +98,26 @@ moduleError  = dlerror
 -- Convenience function, cares for module open- & closing
 -- additionally returns status of `moduleClose' (EXPORTED)
 --
-withModule :: Maybe String
-           -> String
+withModule :: Maybe FilePath
+           -> FilePath
            -> [RTLDFlags]
            -> (Module -> IO a)
            -> IO a
 withModule mdir file flags p = do
   let modPath = case mdir of
                   Nothing -> file
-                  Just dir  -> dir ++ if ((head (reverse dir)) == '/')
-                                       then file
-                                       else ('/':file)
+                  -- Semantics changed in 3.0.0.0: previously,
+                  -- withModule (Just "foo") "/bar" would
+                  -- attempt to load "foo/bar"; now it loads
+                  -- "/bar" (as an absolute path.)
+                  Just dir  -> dir </> file
   modu <- moduleOpen modPath flags
   result <- p modu
   moduleClose modu
   return result
 
-withModule_ :: Maybe String
-            -> String
+withModule_ :: Maybe FilePath
+            -> FilePath
             -> [RTLDFlags]
             -> (Module -> IO a)
             -> IO ()

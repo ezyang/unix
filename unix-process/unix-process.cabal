@@ -1,0 +1,53 @@
+name:           unix-process
+version:        3.2.7.0
+license:        BSD3
+license-file:   LICENSE
+maintainer:     libraries@haskell.org
+homepage:       https://github.com/haskell/unix
+bug-reports:    https://github.com/haskell/unix/issues
+synopsis:       POSIX functionality for file system
+category:       System
+build-type:     Simple
+cabal-version:  >= 1.25
+tested-with:    GHC >= 8.1
+description:
+    This package gives you access to process related operating system
+    services standardised by
+    <http://pubs.opengroup.org/onlinepubs/9699919799/ POSIX.1-2008>
+    (or the IEEE Portable Operating System Interface for Computing
+    Environments - IEEE Std. 1003.1).  It is parametrized by
+    a FilePath signature.
+    .
+    The package is not supported under Windows.
+
+extra-source-files:
+    changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/haskell/unix.git
+
+library
+    default-language: Haskell2010
+    ghc-options: -Wall
+    build-depends:
+        base        >= 4.5     && < 4.10,
+        time        >= 1.2     && < 1.7,
+        unix-common >= 3.0     && < 3.1,
+        unix-fs,
+        str-signature-v1,
+        filepath-signature-v1
+    exposed-modules:
+        System.Posix.Process
+    other-extensions:
+        CApiFFI
+        CPP
+        DeriveDataTypeable
+        InterruptibleFFI
+        NondecreasingIndentation
+        RankNTypes
+        RecordWildCards
+        Safe
+        Trustworthy
+    if os(windows)
+        build-depends: unbuildable<0

@@ -1,5 +1,5 @@
 AC_PREREQ([2.60])
-AC_INIT([Haskell unix package], [2.0], [libraries@haskell.org], [unix])
+AC_INIT([Haskell unix-common package], [2.0], [libraries@haskell.org], [unix-common])
 
 # Safety check: Ensure that we are in the correct source directory.
 AC_CONFIG_SRCDIR([include/HsUnix.h])
@@ -230,6 +230,6 @@ AC_SEARCH_LIBS(sem_close, pthread,
     [AC_MSG_NOTICE([Not found])])
 
 AC_SUBST([EXTRA_LIBS])
-AC_CONFIG_FILES([unix.buildinfo])
+AC_CONFIG_FILES([unix-common.buildinfo])
 
 AC_OUTPUT

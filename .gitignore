@@ -3,14 +3,15 @@ GNUmakefile
 autom4te.cache/
 config.log
 config.status
+config.cache
 configure
 dist/
 dist-install/
 dist-newstyle/
 ghc.mk
-include/HsUnixConfig.h
-include/HsUnixConfig.h.in
-unix.buildinfo
+unix-common/include/HsUnixConfig.h
+unix-common/include/HsUnixConfig.h.in
+unix-common/unix-common.buildinfo
 tests/.hpc.*
 tests/*.eventlog
 tests/*.genscript
@@ -18,3 +19,6 @@ tests/*.o
 tests/*.hi
 tests/*.normalised
 *~
+TAGS
+tags
+cabal.project.local

@@ -1,5 +1,5 @@
 name:           unix
-version:        2.7.2.0
+version:        3.0.0.0
 -- NOTE: Don't forget to update ./changelog.md
 license:        BSD3
 license-file:   LICENSE
@@ -8,9 +8,9 @@ homepage:       https://github.com/haskell/unix
 bug-reports:    https://github.com/haskell/unix/issues
 synopsis:       POSIX functionality
 category:       System
-build-type:     Configure
-cabal-version:  >= 1.10
-tested-with:    GHC>=7.4.1
+build-type:     Simple
+cabal-version:  >= 1.25
+tested-with:    GHC>=8.1
 description:
     This package gives you access to the set of operating system
     services standardised by
@@ -22,21 +22,6 @@ description:
 
 extra-source-files:
     changelog.md
-    config.guess
-    config.sub
-    configure
-    configure.ac
-    include/HsUnix.h
-    include/HsUnixConfig.h.in
-    install-sh
-    unix.buildinfo.in
-
-extra-tmp-files:
-    autom4te.cache
-    config.log
-    config.status
-    include/HsUnixConfig.h
-    unix.buildinfo
 
 source-repository head
     type:     git
@@ -59,18 +44,47 @@ library
         -- This package currently supports neither Cygwin nor MinGW,
         -- therefore os(windows) is effectively not supported.
         build-depends: unbuildable<0
-        buildable: False
 
     build-depends:
         base        >= 4.5     && < 4.10,
         bytestring  >= 0.9.2   && < 0.11,
-        time        >= 1.2     && < 1.7
+        time        >= 1.2     && < 1.7,
+        filepath-bytestring >= 0.1 && < 0.2,
+        filepath-string     >= 0.1 && < 0.2,
+        str-bytestring      >= 0.1 && < 0.2,
+        str-string          >= 0.1 && < 0.2,
+        unix-env,
+        unix-fs,
+        unix-process,
+        unix-common >= 3.0     && < 3.1
+
+    mixins:
+        unix-env
+            requires (Str as Str.String),
+        unix-env
+            (System.Posix.Env as System.Posix.Env.ByteString)
+            requires (Str as Str.ByteString),
+        unix-fs requires (FilePath as FilePath.String),
+        unix-fs
+            (System.Posix.Directory as System.Posix.Directory.ByteString,
+             System.Posix.Files     as System.Posix.Files.ByteString,
+             System.Posix.Temp      as System.Posix.Temp.ByteString,
+             System.Posix.IO        as System.Posix.IO.ByteString,
+             System.Posix.DynamicLinker as System.Posix.DynamicLinker.ByteString,
+             System.Posix.DynamicLinker.Module as System.Posix.DynamicLinker.Module.ByteString,
+             System.Posix.FsUtils   as System.Posix.FsUtils.ByteString,
+             System.Posix.Terminal  as System.Posix.Terminal.ByteString)
+            requires (FilePath as FilePath.ByteString),
+        unix-process requires (Str as Str.String, FilePath as FilePath.String),
+        unix-process
+            (System.Posix.Process as System.Posix.Process.ByteString)
+            requires (Str as Str.ByteString, FilePath as FilePath.ByteString)
 
     exposed-modules:
         System.Posix
         System.Posix.ByteString
+        System.Posix.ByteString.FilePath
 
-        System.Posix.Error
         System.Posix.Resource
         System.Posix.Time
         System.Posix.Unistd
@@ -80,55 +94,27 @@ library
         System.Posix.Semaphore
         System.Posix.SharedMem
 
-        System.Posix.ByteString.FilePath
-
-        System.Posix.Directory
-        System.Posix.Directory.ByteString
-
-        System.Posix.DynamicLinker.Module
-        System.Posix.DynamicLinker.Module.ByteString
-        System.Posix.DynamicLinker.Prim
-        System.Posix.DynamicLinker.ByteString
-        System.Posix.DynamicLinker
-
-        System.Posix.Files
-        System.Posix.Files.ByteString
-
-        System.Posix.IO
-        System.Posix.IO.ByteString
-
-        System.Posix.Env
-        System.Posix.Env.ByteString
-
         System.Posix.Fcntl
 
-        System.Posix.Process
-        System.Posix.Process.Internals
+    reexported-modules:
+        System.Posix.Error,
+        System.Posix.Env,
+        System.Posix.Env.ByteString,
+        System.Posix.Directory,
+        System.Posix.Directory.ByteString,
+        System.Posix.Files,
+        System.Posix.Files.ByteString,
+        System.Posix.Temp,
+        System.Posix.Temp.ByteString,
+        System.Posix.IO,
+        System.Posix.IO.ByteString,
+        System.Posix.DynamicLinker,
+        System.Posix.DynamicLinker.ByteString,
+        System.Posix.DynamicLinker.Module,
+        System.Posix.DynamicLinker.Module.ByteString,
+        System.Posix.Terminal,
+        System.Posix.Terminal.ByteString,
+        System.Posix.Process,
         System.Posix.Process.ByteString
 
-        System.Posix.Temp
-        System.Posix.Temp.ByteString
-
-        System.Posix.Terminal
-        System.Posix.Terminal.ByteString
-
-    other-modules:
-        System.Posix.Directory.Common
-        System.Posix.DynamicLinker.Common
-        System.Posix.Files.Common
-        System.Posix.IO.Common
-        System.Posix.Process.Common
-        System.Posix.Terminal.Common
-
     ghc-options: -Wall
-
-    include-dirs: include
-    includes:
-        HsUnix.h
-        execvpe.h
-    install-includes:
-        HsUnix.h
-        execvpe.h
-    c-sources:
-        cbits/HsUnix.c
-        cbits/execvpe.c

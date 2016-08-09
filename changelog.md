@@ -1,5 +1,21 @@
 # Changelog for [`unix` package](http://hackage.haskell.org/package/unix)
 
+## HEAD
+
+  * Converted to use Backpack; requires GHC 8.1 or later.
+
+  * `System.Posix.DynamicLinker.Module.ByteString` now correctly exports
+    a `ByteString` variant of `withModule` and `withModule_`
+    (previously, it was a reexport of
+    `System.Posix.DynamicLinker.Module`, which accepted string paths,
+    not `RawFilePath`.)
+
+  * `moduleSymbol`, `moduleClose` and `moduleError` are no longer
+    the same identifier between `System.Posix.DynamicLinker.Module`
+    and `System.Posix.DynamicLinker.Module.ByteString`, and will
+    result in ambiguity if brought into scope from both modules
+    simultaneously.
+
 ## 2.7.2.0  *Apr 2016*
 
   * Bundled with GHC 8.0.1

@@ -1,0 +1,65 @@
+name:           unix-common
+version:        3.0.0.0
+license:        BSD3
+maintainer:     libraries@haskell.org
+synopsis:       Common, non-parametrized types for POSIX functionality
+build-type:     Configure
+cabal-version:  >= 1.10
+description:
+    This package contains definitions for types and functions which
+    are useful for providing POSIX implementations; these types are
+    invariant to the choice of Str or FilePath representation.
+    .
+    This package is not supported under Windows.
+
+extra-source-files:
+    config.guess
+    config.sub
+    configure
+    configure.ac
+    include/HsUnix.h
+    include/HsUnixConfig.h.in
+    install-sh
+    unix-common.buildinfo.in
+
+extra-tmp-files:
+    autom4te.cache
+    config.log
+    config.status
+    include/HsUnixConfig.h
+    unix-common.buildinfo
+
+library
+    default-language: Haskell2010
+    ghc-options: -Wall
+    build-depends:
+        base        >= 4.5     && < 4.10,
+        time        >= 1.2     && < 1.7
+    exposed-modules:
+        System.Posix.Error
+        System.Posix.Directory.Common
+        System.Posix.Files.Common
+        System.Posix.IO.Common
+        System.Posix.DynamicLinker.Common
+        System.Posix.DynamicLinker.Prim
+        System.Posix.Terminal.Common
+        System.Posix.Process.Internals
+        System.Posix.Process.Common
+    include-dirs: include
+    includes:
+        HsUnix.h
+        execvpe.h
+    install-includes:
+        HsUnix.h
+        HsUnixConfig.h
+        execvpe.h
+    other-extensions:
+        CApiFFI
+        CPP
+        DeriveDataTypeable
+        InterruptibleFFI
+        NondecreasingIndentation
+        RankNTypes
+        RecordWildCards
+        Safe
+        Trustworthy

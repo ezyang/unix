@@ -6,7 +6,7 @@
 
 -----------------------------------------------------------------------------
 -- |
--- Module      :  System.Posix.DynamicLinker.ByteString
+-- Module      :  System.Posix.DynamicLinker
 -- Copyright   :  (c) Volker Stolz <vs@foldr.org> 2003
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
 --
@@ -17,7 +17,7 @@
 -- Dynamic linker support through dlopen()
 -----------------------------------------------------------------------------
 
-module System.Posix.DynamicLinker.ByteString (
+module System.Posix.DynamicLinker (
 
     module System.Posix.DynamicLinker.Prim,
     dlopen,
@@ -56,18 +56,19 @@ import System.Posix.DynamicLinker.Prim
 
 #include "HsUnix.h"
 
+import Prelude hiding (FilePath)
 import Control.Exception        ( bracket )
 import Control.Monad    ( liftM )
 import Foreign
-import System.Posix.ByteString.FilePath
+import FilePath
 
-dlopen :: RawFilePath -> [RTLDFlags] -> IO DL
+dlopen :: FilePath -> [RTLDFlags] -> IO DL
 dlopen path flags = do
   withFilePath path $ \ p -> do
     liftM DLHandle $ throwDLErrorIf "dlopen" (== nullPtr) $ c_dlopen p (packRTLDFlags flags)
 
-withDL :: RawFilePath -> [RTLDFlags] -> (DL -> IO a) -> IO a
+withDL :: FilePath -> [RTLDFlags] -> (DL -> IO a) -> IO a
 withDL file flags f = bracket (dlopen file flags) (dlclose) f
 
-withDL_ :: RawFilePath -> [RTLDFlags] -> (DL -> IO a) -> IO ()
+withDL_ :: FilePath -> [RTLDFlags] -> (DL -> IO a) -> IO ()
 withDL_ file flags f = withDL file flags f >> return ()

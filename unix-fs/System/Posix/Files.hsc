@@ -7,7 +7,7 @@
 
 -----------------------------------------------------------------------------
 -- |
--- Module      :  System.Posix.Files.ByteString
+-- Module      :  System.Posix.Files
 -- Copyright   :  (c) The University of Glasgow 2002
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
 --
@@ -31,7 +31,7 @@
 
 #include "HsUnix.h"
 
-module System.Posix.Files.ByteString (
+module System.Posix.Files (
     -- * File modes
     -- FileMode exported by System.Posix.Types
     unionFileModes, intersectFileModes,
@@ -94,21 +94,64 @@ module System.Posix.Files.ByteString (
     PathVar(..), getPathVar, getFdPathVar,
   ) where
 
-import System.Posix.Types
-import System.Posix.Internals hiding (withFilePath, peekFilePathLen)
-import Foreign
-import Foreign.C hiding (
-     throwErrnoPath,
-     throwErrnoPathIf,
-     throwErrnoPathIf_,
-     throwErrnoPathIfNull,
-     throwErrnoPathIfMinus1,
-     throwErrnoPathIfMinus1_ )
+import Prelude hiding (FilePath)
 
+import Foreign
+import Foreign.C hiding
+    (throwErrnoPathIfMinus1, throwErrnoPathIfMinus1_,
+     throwErrnoPath)
+
+import System.Posix.Types
 import System.Posix.Files.Common
-import System.Posix.ByteString.FilePath
+import System.Posix.Internals hiding (withFilePath, peekFilePathLen)
+import System.Posix.FsUtils
 
 import Data.Time.Clock.POSIX (POSIXTime)
+
+import FilePath
+
+-- -----------------------------------------------------------------------------
+-- Preprocessor toggles
+
+have_utimensat :: Bool
+#if HAVE_UTIMENSAT
+have_utimensat = True
+#else
+have_utimensat = False
+#endif
+
+have_lutimes :: Bool
+#if HAVE_LUTIMES
+have_lutimes = True
+#else
+have_lutimes = False
+#endif
+
+at_fdcwd :: CInt
+#if HAVE_UTIMENSAT
+-- NB: I'm not actually sure if AT_FDCWD is present here, but
+-- I wanted to be consistent
+at_fdcwd = (#const AT_FDCWD)
+#else
+at_fdcwd = error "at_fdcwd: !HAVE_UTIMENSAT"
+#endif
+
+at_symlink_nofollow :: CInt
+#if HAVE_UTIMENSAT
+-- NB: Ditto as above
+at_symlink_nofollow = (#const AT_SYMLINK_NOFOLLOW)
+#else
+at_symlink_nofollow = error "at_symlink_nofollow: !HAVE_UTIMENSAT"
+#endif
+
+-- ToDo: should really use SYMLINK_MAX, but not everyone supports it yet,
+-- and it seems that the intention is that SYMLINK_MAX is no larger than
+-- PATH_MAX.
+#if !defined(PATH_MAX)
+-- PATH_MAX is not defined on systems with unlimited path length.
+-- Ugly.  Fix this.
+#define PATH_MAX 4096
+#endif
 
 -- -----------------------------------------------------------------------------
 -- chmod()
@@ -119,11 +162,10 @@ import Data.Time.Clock.POSIX (POSIXTime)
 -- of the file's owner.
 --
 -- Note: calls @chmod@.
-setFileMode :: RawFilePath -> FileMode -> IO ()
+setFileMode :: FilePath -> FileMode -> IO ()
 setFileMode name m =
   withFilePath name $ \s -> do
     throwErrnoPathIfMinus1_ "setFileMode" name (c_chmod s m)
-
 
 -- -----------------------------------------------------------------------------
 -- access()
@@ -133,7 +175,7 @@ setFileMode name m =
 -- check a permission set the corresponding argument to 'True'.
 --
 -- Note: calls @access@.
-fileAccess :: RawFilePath -> Bool -> Bool -> Bool -> IO Bool
+fileAccess :: FilePath -> Bool -> Bool -> Bool -> IO Bool
 fileAccess name readOK writeOK execOK = access name flags
   where
    flags   = read_f .|. write_f .|. exec_f
@@ -144,7 +186,7 @@ fileAccess name readOK writeOK execOK = access name flags
 -- | Checks for the existence of the file.
 --
 -- Note: calls @access@.
-fileExist :: RawFilePath -> IO Bool
+fileExist :: FilePath -> IO Bool
 fileExist name =
   withFilePath name $ \s -> do
     r <- c_access s (#const F_OK)
@@ -155,7 +197,7 @@ fileExist name =
                    then return False
                    else throwErrnoPath "fileExist" name
 
-access :: RawFilePath -> CMode -> IO Bool
+access :: FilePath -> CMode -> IO Bool
 access name flags =
   withFilePath name $ \s -> do
     r <- c_access s (fromIntegral flags)
@@ -172,7 +214,7 @@ access name flags =
 -- size, access times, etc.) for the file @path@.
 --
 -- Note: calls @stat@.
-getFileStatus :: RawFilePath -> IO FileStatus
+getFileStatus :: FilePath -> IO FileStatus
 getFileStatus path = do
   fp <- mallocForeignPtrBytes (#const sizeof(struct stat))
   withForeignPtr fp $ \p ->
@@ -180,12 +222,12 @@ getFileStatus path = do
       throwErrnoPathIfMinus1Retry_ "getFileStatus" path (c_stat s p)
   return (FileStatus fp)
 
--- | Acts as 'getFileStatus' except when the 'RawFilePath' refers to a symbolic
+-- | Acts as 'getFileStatus' except when the 'FilePath' refers to a symbolic
 -- link. In that case the @FileStatus@ information of the symbolic link itself
 -- is returned instead of that of the file it points to.
 --
 -- Note: calls @lstat@.
-getSymbolicLinkStatus :: RawFilePath -> IO FileStatus
+getSymbolicLinkStatus :: FilePath -> IO FileStatus
 getSymbolicLinkStatus path = do
   fp <- mallocForeignPtrBytes (#const sizeof(struct stat))
   withForeignPtr fp $ \p ->
@@ -203,7 +245,7 @@ foreign import capi unsafe "HsUnix.h lstat"
 -- have permission to create the pipe.
 --
 -- Note: calls @mkfifo@.
-createNamedPipe :: RawFilePath -> FileMode -> IO ()
+createNamedPipe :: FilePath -> FileMode -> IO ()
 createNamedPipe name mode = do
   withFilePath name $ \s ->
     throwErrnoPathIfMinus1_ "createNamedPipe" name (c_mkfifo s mode)
@@ -216,7 +258,7 @@ createNamedPipe name mode = do
 -- the file.
 --
 -- Note: calls @mknod@.
-createDevice :: RawFilePath -> FileMode -> DeviceID -> IO ()
+createDevice :: FilePath -> FileMode -> DeviceID -> IO ()
 createDevice path mode dev =
   withFilePath path $ \s ->
     throwErrnoPathIfMinus1_ "createDevice" path (c_mknod s mode dev)
@@ -231,7 +273,7 @@ foreign import capi unsafe "HsUnix.h mknod"
 -- @old@.
 --
 -- Note: calls @link@.
-createLink :: RawFilePath -> RawFilePath -> IO ()
+createLink :: FilePath -> FilePath -> IO ()
 createLink name1 name2 =
   withFilePath name1 $ \s1 ->
   withFilePath name2 $ \s2 ->
@@ -240,7 +282,7 @@ createLink name1 name2 =
 -- | @removeLink path@ removes the link named @path@.
 --
 -- Note: calls @unlink@.
-removeLink :: RawFilePath -> IO ()
+removeLink :: FilePath -> IO ()
 removeLink name =
   withFilePath name $ \s ->
   throwErrnoPathIfMinus1_ "removeLink" name (c_unlink s)
@@ -255,7 +297,7 @@ removeLink name =
 -- had been substituted into the path being followed to find a file or directory.
 --
 -- Note: calls @symlink@.
-createSymbolicLink :: RawFilePath -> RawFilePath -> IO ()
+createSymbolicLink :: FilePath -> FilePath -> IO ()
 createSymbolicLink file1 file2 =
   withFilePath file1 $ \s1 ->
   withFilePath file2 $ \s2 ->
@@ -264,19 +306,10 @@ createSymbolicLink file1 file2 =
 foreign import ccall unsafe "symlink"
   c_symlink :: CString -> CString -> IO CInt
 
--- ToDo: should really use SYMLINK_MAX, but not everyone supports it yet,
--- and it seems that the intention is that SYMLINK_MAX is no larger than
--- PATH_MAX.
-#if !defined(PATH_MAX)
--- PATH_MAX is not defined on systems with unlimited path length.
--- Ugly.  Fix this.
-#define PATH_MAX 4096
-#endif
-
--- | Reads the @RawFilePath@ pointed to by the symbolic link and returns it.
+-- | Reads the @FilePath@ pointed to by the symbolic link and returns it.
 --
 -- Note: calls @readlink@.
-readSymbolicLink :: RawFilePath -> IO RawFilePath
+readSymbolicLink :: FilePath -> IO FilePath
 readSymbolicLink file =
   allocaArray0 (#const PATH_MAX) $ \buf -> do
     withFilePath file $ \s -> do
@@ -293,7 +326,7 @@ foreign import ccall unsafe "readlink"
 -- | @rename old new@ renames a file or directory from @old@ to @new@.
 --
 -- Note: calls @rename@.
-rename :: RawFilePath -> RawFilePath -> IO ()
+rename :: FilePath -> FilePath -> IO ()
 rename name1 name2 =
   withFilePath name1 $ \s1 ->
   withFilePath name2 $ \s2 ->
@@ -311,7 +344,7 @@ foreign import ccall unsafe "rename"
 -- If @uid@ or @gid@ is specified as -1, then that ID is not changed.
 --
 -- Note: calls @chown@.
-setOwnerAndGroup :: RawFilePath -> UserID -> GroupID -> IO ()
+setOwnerAndGroup :: FilePath -> UserID -> GroupID -> IO ()
 setOwnerAndGroup name uid gid = do
   withFilePath name $ \s ->
     throwErrnoPathIfMinus1_ "setOwnerAndGroup" name (c_chown s uid gid)
@@ -319,19 +352,22 @@ setOwnerAndGroup name uid gid = do
 foreign import ccall unsafe "chown"
   c_chown :: CString -> CUid -> CGid -> IO CInt
 
-#if HAVE_LCHOWN
 -- | Acts as 'setOwnerAndGroup' but does not follow symlinks (and thus
 -- changes permissions on the link itself).
 --
 -- Note: calls @lchown@.
-setSymbolicLinkOwnerAndGroup :: RawFilePath -> UserID -> GroupID -> IO ()
+setSymbolicLinkOwnerAndGroup :: FilePath -> UserID -> GroupID -> IO ()
 setSymbolicLinkOwnerAndGroup name uid gid = do
   withFilePath name $ \s ->
     throwErrnoPathIfMinus1_ "setSymbolicLinkOwnerAndGroup" name
         (c_lchown s uid gid)
 
+#if HAVE_LCHOWN
 foreign import ccall unsafe "lchown"
   c_lchown :: CString -> CUid -> CGid -> IO CInt
+#else
+c_lchown :: CString -> CUid -> CGid -> IO CInt
+c_lchown = error "c_lchown: !HAVE_LCHOWN"
 #endif
 
 -- -----------------------------------------------------------------------------
@@ -341,7 +377,7 @@ foreign import ccall unsafe "lchown"
 -- associated with file @path@ to @atime@ and @mtime@, respectively.
 --
 -- Note: calls @utime@.
-setFileTimes :: RawFilePath -> EpochTime -> EpochTime -> IO ()
+setFileTimes :: FilePath -> EpochTime -> EpochTime -> IO ()
 setFileTimes name atime mtime = do
   withFilePath name $ \s ->
    allocaBytes (#const sizeof(struct utimbuf)) $ \p -> do
@@ -352,48 +388,47 @@ setFileTimes name atime mtime = do
 -- | Like 'setFileTimes' but timestamps can have sub-second resolution.
 --
 -- Note: calls @utimensat@ or @utimes@.
-setFileTimesHiRes :: RawFilePath -> POSIXTime -> POSIXTime -> IO ()
-#ifdef HAVE_UTIMENSAT
-setFileTimesHiRes name atime mtime =
+--
+-- @since 2.7.0.0
+setFileTimesHiRes :: FilePath -> POSIXTime -> POSIXTime -> IO ()
+setFileTimesHiRes name atime mtime
+ | have_utimensat =
   withFilePath name $ \s ->
     withArray [toCTimeSpec atime, toCTimeSpec mtime] $ \times ->
       throwErrnoPathIfMinus1_ "setFileTimesHiRes" name $
-        c_utimensat (#const AT_FDCWD) s times 0
-#else
-setFileTimesHiRes name atime mtime =
+        c_utimensat at_fdcwd s times 0
+ | otherwise =
   withFilePath name $ \s ->
     withArray [toCTimeVal atime, toCTimeVal mtime] $ \times ->
       throwErrnoPathIfMinus1_ "setFileTimesHiRes" name (c_utimes s times)
-#endif
 
 -- | Like 'setFileTimesHiRes' but does not follow symbolic links.
 -- This operation is not supported on all platforms. On these platforms,
 -- this function will raise an exception.
 --
 -- Note: calls @utimensat@ or @lutimes@.
-setSymbolicLinkTimesHiRes :: RawFilePath -> POSIXTime -> POSIXTime -> IO ()
-#if HAVE_UTIMENSAT
-setSymbolicLinkTimesHiRes name atime mtime =
+--
+-- @since 2.7.0.0
+setSymbolicLinkTimesHiRes :: FilePath -> POSIXTime -> POSIXTime -> IO ()
+setSymbolicLinkTimesHiRes name atime mtime
+ | have_utimensat =
   withFilePath name $ \s ->
     withArray [toCTimeSpec atime, toCTimeSpec mtime] $ \times ->
       throwErrnoPathIfMinus1_ "setSymbolicLinkTimesHiRes" name $
-        c_utimensat (#const AT_FDCWD) s times (#const AT_SYMLINK_NOFOLLOW)
-#elif HAVE_LUTIMES
-setSymbolicLinkTimesHiRes name atime mtime =
+        c_utimensat at_fdcwd s times at_symlink_nofollow
+ | have_lutimes =
   withFilePath name $ \s ->
     withArray [toCTimeVal atime, toCTimeVal mtime] $ \times ->
       throwErrnoPathIfMinus1_ "setSymbolicLinkTimesHiRes" name $
         c_lutimes s times
-#else
-setSymbolicLinkTimesHiRes =
+ | otherwise =
   error "setSymbolicLinkTimesHiRes: not available on this platform"
-#endif
 
 -- | @touchFile path@ sets the access and modification times associated with
 -- file @path@ to the current time.
 --
 -- Note: calls @utime@.
-touchFile :: RawFilePath -> IO ()
+touchFile :: FilePath -> IO ()
 touchFile name = do
   withFilePath name $ \s ->
    throwErrnoPathIfMinus1_ "touchFile" name (c_utime s nullPtr)
@@ -403,15 +438,15 @@ touchFile name = do
 -- this function will raise an exception.
 --
 -- Note: calls @lutimes@.
-touchSymbolicLink :: RawFilePath -> IO ()
-#if HAVE_LUTIMES
-touchSymbolicLink name =
+--
+-- @since 2.7.0.0
+touchSymbolicLink :: FilePath -> IO ()
+touchSymbolicLink name
+ | have_lutimes =
   withFilePath name $ \s ->
     throwErrnoPathIfMinus1_ "touchSymbolicLink" name (c_lutimes s nullPtr)
-#else
-touchSymbolicLink =
+ | otherwise =
   error "touchSymbolicLink: not available on this platform"
-#endif
 
 -- -----------------------------------------------------------------------------
 -- Setting file sizes
@@ -420,7 +455,7 @@ touchSymbolicLink =
 -- than the given length before this operation was performed the extra is lost.
 --
 -- Note: calls @truncate@.
-setFileSize :: RawFilePath -> FileOffset -> IO ()
+setFileSize :: FilePath -> FileOffset -> IO ()
 setFileSize file off =
   withFilePath file $ \s ->
     throwErrnoPathIfMinus1_ "setFileSize" file (c_truncate s off)
@@ -438,7 +473,7 @@ foreign import capi unsafe "HsUnix.h truncate"
 -- is undefined, but not failure.
 --
 -- Note: calls @pathconf@.
-getPathVar :: RawFilePath -> PathVar -> IO Limit
+getPathVar :: FilePath -> PathVar -> IO Limit
 getPathVar name v = do
   withFilePath name $ \ nameP ->
     throwErrnoPathIfMinus1 "getPathVar" name $

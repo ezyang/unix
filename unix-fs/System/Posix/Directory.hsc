@@ -51,14 +51,17 @@ module System.Posix.Directory (
    changeWorkingDirectoryFd,
   ) where
 
-import System.IO.Error
-import System.Posix.Error
+import Prelude hiding (FilePath)
+import System.IO.Error hiding (ioeSetFileName)
 import System.Posix.Types
 import Foreign
 import Foreign.C
 
 import System.Posix.Directory.Common
-import System.Posix.Internals (withFilePath, peekFilePath)
+
+import System.Posix.FsUtils
+
+import FilePath
 
 -- | @createDirectory dir mode@ calls @mkdir@ to
 --   create a new directory, @dir@, with permissions based on
@@ -98,7 +101,7 @@ readDirStream (DirStream dirp) =
     if (r == 0)
          then do dEnt <- peek ptr_dEnt
                  if (dEnt == nullPtr)
-                    then return []
+                    then return mempty
                     else do
                      entry <- (d_name dEnt >>= peekFilePath)
                      c_freeDirEnt dEnt
@@ -107,7 +110,7 @@ readDirStream (DirStream dirp) =
                  if (errno == eINTR) then loop ptr_dEnt else do
                  let (Errno eo) = errno
                  if (eo == 0)
-                    then return []
+                    then return mempty
                     else throwErrno "readDirStream"
 
 -- traversing directories

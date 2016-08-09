@@ -70,11 +70,18 @@ module System.Posix.Process (
 
 #include "HsUnix.h"
 
+import Prelude hiding (FilePath)
 import Foreign
-import Foreign.C
+import Foreign.C hiding
+    (throwErrnoPathIfMinus1, throwErrnoPathIfMinus1_,
+     throwErrnoPath)
 import System.Posix.Process.Internals
 import System.Posix.Process.Common
-import System.Posix.Internals ( withFilePath )
+import System.Posix.FsUtils
+
+import FilePath
+import Str (Str)
+import qualified Str as S
 
 -- | @'executeFile' cmd args env@ calls one of the
 --   @execv*@ family, depending on whether or not the current
@@ -86,13 +93,13 @@ import System.Posix.Internals ( withFilePath )
 --   begins with @arg[1]@.
 executeFile :: FilePath                     -- ^ Command
             -> Bool                         -- ^ Search PATH?
-            -> [String]                     -- ^ Arguments
-            -> Maybe [(String, String)]     -- ^ Environment
+            -> [Str]                        -- ^ Arguments
+            -> Maybe [(Str, Str)]           -- ^ Environment
             -> IO a
 executeFile path search args Nothing = do
   withFilePath path $ \s ->
-    withMany withFilePath (path:args) $ \cstrs ->
-      withArray0 nullPtr cstrs $ \arr -> do
+    withMany S.useAsOSString args $ \cstrs ->
+      withArray0 nullPtr (s:cstrs) $ \arr -> do
         pPrPr_disableITimers
         if search
            then throwErrnoPathIfMinus1_ "executeFile" path (c_execvp s arr)
@@ -101,10 +108,10 @@ executeFile path search args Nothing = do
 
 executeFile path search args (Just env) = do
   withFilePath path $ \s ->
-    withMany withFilePath (path:args) $ \cstrs ->
-      withArray0 nullPtr cstrs $ \arg_arr ->
-    let env' = map (\ (name, val) -> name ++ ('=' : val)) env in
-    withMany withFilePath env' $ \cenv ->
+    withMany S.useAsOSString (args) $ \cstrs ->
+      withArray0 nullPtr (s:cstrs) $ \arg_arr ->
+    let env' = map (\ (name, val) -> name `S.append` (S.cons '=' val)) env in
+    withMany S.useAsOSString env' $ \cenv ->
       withArray0 nullPtr cenv $ \env_arr -> do
         pPrPr_disableITimers
         if search

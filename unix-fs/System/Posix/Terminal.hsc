@@ -1,4 +1,5 @@
 {-# LANGUAGE CApiFFI #-}
+{-# LANGUAGE OverloadedStrings #-}
 #if __GLASGOW_HASKELL__ >= 709
 {-# LANGUAGE Safe #-}
 #else
@@ -74,6 +75,7 @@ module System.Posix.Terminal (
 
 #include "HsUnix.h"
 
+import Prelude hiding (FilePath)
 import Foreign
 import Foreign.C
 import System.Posix.Terminal.Common
@@ -82,12 +84,12 @@ import System.Posix.Types
 import System.Posix.IO
 #endif
 
-import System.Posix.Internals (peekFilePath)
-
 #if !HAVE_CTERMID
 import System.IO.Error ( ioeSetLocation )
 import GHC.IO.Exception ( unsupportedOperation )
 #endif
+
+import FilePath
 
 -- | @getTerminalName fd@ calls @ttyname@ to obtain a name associated
 --   with the terminal for @Fd@ @fd@. If @fd@ is associated

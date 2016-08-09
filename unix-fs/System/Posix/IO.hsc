@@ -5,7 +5,7 @@
 #endif
 -----------------------------------------------------------------------------
 -- |
--- Module      :  System.Posix.IO.ByteString
+-- Module      :  System.Posix.IO
 -- Copyright   :  (c) The University of Glasgow 2002
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
 --
@@ -22,7 +22,7 @@
 
 #include "HsUnix.h"
 
-module System.Posix.IO.ByteString (
+module System.Posix.IO (
     -- * Input \/ Output
 
     -- ** Standard file descriptors
@@ -67,14 +67,17 @@ module System.Posix.IO.ByteString (
 
   ) where
 
+import Prelude hiding (FilePath)
+
 import System.Posix.Types
 import System.Posix.IO.Common
+import System.Posix.FsUtils
 
-import System.Posix.ByteString.FilePath
+import FilePath
 
 -- |Open and optionally create this file.  See 'System.Posix.Files'
 -- for information on how to use the 'FileMode' type.
-openFd :: RawFilePath
+openFd :: FilePath
        -> OpenMode
        -> Maybe FileMode -- ^Just x => creates the file with the given modes, Nothing => the file must exist.
        -> OpenFileFlags
@@ -88,6 +91,6 @@ openFd name how maybe_mode flags = do
 -- 'openFd'.  See 'System.Posix.Files' for information on how to use
 -- the 'FileMode' type.
 
-createFile :: RawFilePath -> FileMode -> IO Fd
+createFile :: FilePath -> FileMode -> IO Fd
 createFile name mode
   = openFd name WriteOnly (Just mode) defaultFileFlags{ trunc=True }
