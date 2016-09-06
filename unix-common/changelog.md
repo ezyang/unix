@@ -3,3 +3,5 @@
 ## HEAD
 
   * Initial release of this package.
+
+  * Don't use `readdir_r` if its deprecated.
